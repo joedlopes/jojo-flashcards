@@ -4,8 +4,6 @@
 
 **JoJo-Flashcards!** is a fast, offline-first flashcard app that helps you study efficiently. Create decks, customize flashcards with colors, and run self-testing sessions directly in your browser — no accounts, no servers, just your knowledge.
 
-![JoJo Flashcards](assets/icons/icon.png)
-
 🔗 **Demo (Web App)**: [https://joedlopes.github.io/jojo-flashcards/](https://joedlopes.github.io/jojo-flashcards/)
 
 ---
