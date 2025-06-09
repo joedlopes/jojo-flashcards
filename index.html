@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JoJo-Flashcards!</title>
+
+    <link href="assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        /* General styling */
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container-fluid {
+            max-width: 1400px;
+        }
+
+        /* Deck item styling */
+        .deck-item {
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .card-list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .color-swatch {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            display: inline-block;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Play Modal - Flashcard Styling */
+        #play-modal .modal-content {
+            height: 100vh;
+            border-radius: 0;
+            background-color: #f8f9fa;
+        }
+
+        html[data-bs-theme="dark"] #play-modal .modal-content {
+            background-color: #212529;
+        }
+
+        .flashcard-container {
+            perspective: 1000px;
+            width: clamp(300px, 80vw, 700px);
+            height: clamp(200px, 50vh, 400px);
+        }
+
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            cursor: pointer;
+        }
+
+        .flashcard.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+            font-size: clamp(1.2rem, 5vw, 2.5rem);
+            border-radius: 1rem;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+
+        #play-bottom-controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: opacity 0.3s ease-in-out;
+            opacity: 0;
+            min-height: 60px;
+            /* Reserve space for buttons */
+        }
+
+        #play-modal .modal-body:hover #play-bottom-controls,
+        #play-modal .modal-body.show-controls #play-bottom-controls {
+            opacity: 1;
+        }
+
+        #session-results {
+            max-width: 600px;
+        }
+    </style>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+
+    <!-- Header -->
+    <header class="py-3 mb-4 border-bottom shadow-sm">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <h1 class="h4 mb-0">
+                <i class="bi bi-stack me-2"></i>JoJo-Flashcards!
+            </h1>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="theme-switch">
+                <label class="form-check-label" for="theme-switch"><i class="bi bi-moon-stars-fill"></i> Dark
+                    Mode</label>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container-fluid flex-grow-1">
+        <ul class="nav nav-tabs" id="main-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="decks-tab" data-bs-toggle="tab" data-bs-target="#decks-pane"
+                    type="button" role="tab" aria-controls="decks-pane" aria-selected="true"><i
+                        class="bi bi-collection-fill me-1"></i> Manage Decks</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-pane" type="button"
+                    role="tab" aria-controls="data-pane" aria-selected="false"><i class="bi bi-arrow-down-up me-1"></i>
+                    Import/Export</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ai-tab" data-bs-toggle="tab" data-bs-target="#ai-pane" type="button"
+                    role="tab" aria-controls="ai-pane" aria-selected="false"><i class="bi bi-robot me-1"></i> AI
+                    Assistant Guide</button>
+            </li>
+        </ul>
+
+        <div class="tab-content pt-4" id="main-tabs-content">
+            <!-- Decks Pane -->
+            <div class="tab-pane fade show active" id="decks-pane" role="tabpanel" aria-labelledby="decks-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2>Your Decks</h2>
+                    <div>
+                        <button class="btn btn-primary" id="add-deck-btn"><i class="bi bi-plus-circle-fill me-2"></i>Add
+                            New Deck</button>
+                    </div>
+                </div>
+                <div id="deck-list" class="vstack gap-3">
+                    <!-- Deck items will be injected here -->
+                </div>
+            </div>
+
+            <!-- Import/Export Pane -->
+            <div class="tab-pane fade" id="data-pane" role="tabpanel" aria-labelledby="data-tab">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h3><i class="bi bi-box-arrow-up me-2"></i>Export Decks</h3>
+                        <p>Copy the JSON below or download it as a file to back up or share your decks.</p>
+                        <textarea class="form-control" id="export-textarea" rows="10" readonly></textarea>
+                        <button class="btn btn-primary mt-2" id="download-json-btn"><i class="bi bi-download me-1"></i>
+                            Download JSON</button>
+                    </div>
+                    <div class="col-md-6">
+                        <h3><i class="bi bi-box-arrow-down me-2"></i>Import Decks</h3>
+                        <p>Paste JSON here to add decks to your collection.</p>
+                        <textarea class="form-control" id="import-textarea" rows="10"></textarea>
+                        <button class="btn btn-secondary mt-2 me-2" id="import-json-btn"><i
+                                class="bi bi-upload me-1"></i> Import from Text</button>
+                        <input type="file" id="import-file-input" class="d-none" accept=".json">
+                        <button class="btn btn-secondary mt-2" id="load-file-btn"><i
+                                class="bi bi-folder2-open me-1"></i> Load from File</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Assistant Guide Pane -->
+            <div class="tab-pane fade" id="ai-pane" role="tabpanel" aria-labelledby="ai-tab">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        <h2><i class="bi bi-robot me-2"></i>AI Assistant Guide</h2>
+                        <p>You can use an AI assistant like Gemini to quickly generate a flashcard deck. Copy the prompt
+                            below and paste it into your favorite AI chat interface.</p>
+                        <div class="card">
+                            <div class="card-body">
+                                <pre id="ai-prompt-text" class="p-3 bg-body-tertiary rounded border"
+                                    style="white-space: pre-wrap; word-wrap: break-word;"><code>Generate a JSON array of flashcard decks. Each deck object must have "title" (string) and "cards" (array). Each card object in the array must have "front" (string), "back" (string), "frontColor" (hex string, e.g., "#FFFFFF"), and "backColor" (hex string, e.g., "#E9ECEF").
+
+Example JSON structure:
+[
+  {
+    "title": "Basic Spanish Vocabulary",
+    "cards": [
+      { "front": "Hello", "back": "Hola", "frontColor": "#FFFFFF", "backColor": "#E9ECEF" },
+      { "front": "Goodbye", "back": "Adiós", "frontColor": "#FFFFFF", "backColor": "#E9ECEF" }
+    ]
+  }
+]
+
+Now, create a deck for "Common Git Commands".</code></pre>
+                                <button class="btn btn-outline-secondary mt-2" id="copy-prompt-btn"><i
+                                        class="bi bi-clipboard me-1"></i> Copy Prompt</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3 bg-body-tertiary border-top">
+        <div class="container-fluid text-center">
+            <p class="text-muted mb-0">JoJo-Flashcards! - <strong>Master any subject.</strong></p>
+        </div>
+    </footer>
+
+    <!-- Full-screen Play Modal -->
+    <div class="modal fade" id="play-modal" tabindex="-1" aria-labelledby="playModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-body d-flex flex-column justify-content-center align-items-center text-center p-4 position-relative"
+                    id="play-modal-body">
+
+                    <!-- Pre-session settings -->
+                    <div id="play-settings" class="container" style="max-width: 600px;">
+                        <h2 id="play-settings-title" class="display-6 mb-4">Ready to Play?</h2>
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <label for="timeout-slider" class="form-label">Timer per card (seconds)</label>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">Off</span>
+                                    <input type="range" class="form-range" id="timeout-slider" min="0" max="60"
+                                        value="0">
+                                    <span class="ms-2" id="timeout-value">Disabled</span>
+                                </div>
+                                <div class="form-text">Set to 0 to disable the timer.</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-lg" id="start-play-btn"><i
+                                class="bi bi-play-circle-fill me-2"></i>Start Session</button>
+                        <button class="btn btn-secondary btn-lg" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>
+                            Cancel</button>
+                    </div>
+
+                    <!-- Active session view -->
+                    <div id="play-session" class="d-none">
+                        <div class="flashcard-container">
+                            <div class="flashcard" id="flashcard">
+                                <div class="flashcard-face flashcard-front" id="flashcard-front"></div>
+                                <div class="flashcard-face flashcard-back" id="flashcard-back"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4" style="width: clamp(300px, 80vw, 700px);">
+                            <p class="mb-2">
+                                <span id="card-counter" class="fw-bold"></span> of <span id="deck-total"
+                                    class="fw-bold"></span>
+                            </p>
+                            <div class="progress" style="height: 10px;">
+                                <div id="deck-progress-bar" class="progress-bar" role="progressbar" style="width: 0%;"
+                                    aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                        <div id="card-timer-container" class="mt-3 d-none" style="width: clamp(300px, 80vw, 700px);">
+                            <div class="progress" style="height: 5px;">
+                                <div id="card-timer-bar" class="progress-bar bg-secondary" role="progressbar"
+                                    style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Session results view -->
+                    <div id="session-results" class="d-none text-center">
+                        <h2 class="display-4">Session Complete!</h2>
+                        <p class="lead" id="results-summary"></p>
+                        <div class="mt-4">
+                            <button class="btn btn-primary btn-lg" id="play-again-btn"><i
+                                    class="bi bi-arrow-clockwise"></i> Play Again</button>
+                            <button class="btn btn-secondary btn-lg" data-bs-dismiss="modal"><i
+                                    class="bi bi-door-open-fill"></i> Back to Decks</button>
+                        </div>
+                    </div>
+
+                    <!-- Controls visible on hover -->
+                    <div id="play-bottom-controls" class="p-4">
+                        <!-- This div will be populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const themeSwitch = document.getElementById('theme-switch');
+            const addDeckBtn = document.getElementById('add-deck-btn');
+            const deckList = document.getElementById('deck-list');
+
+            const playModalEl = document.getElementById('play-modal');
+            const playModal = new bootstrap.Modal(playModalEl);
+            const playModalBody = document.getElementById('play-modal-body');
+            const playSettings = document.getElementById('play-settings');
+            const playSettingsTitle = document.getElementById('play-settings-title');
+            const playSession = document.getElementById('play-session');
+            const sessionResults = document.getElementById('session-results');
+            const resultsSummary = document.getElementById('results-summary');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const startPlayBtn = document.getElementById('start-play-btn');
+            const timeoutSlider = document.getElementById('timeout-slider');
+            const timeoutValue = document.getElementById('timeout-value');
+
+            const flashcard = document.getElementById('flashcard');
+            const flashcardFront = document.getElementById('flashcard-front');
+            const flashcardBack = document.getElementById('flashcard-back');
+            const cardCounter = document.getElementById('card-counter');
+            const deckTotal = document.getElementById('deck-total');
+            const deckProgressBar = document.getElementById('deck-progress-bar');
+
+            const cardTimerContainer = document.getElementById('card-timer-container');
+            const cardTimerBar = document.getElementById('card-timer-bar');
+
+            const playBottomControls = document.getElementById('play-bottom-controls');
+
+            const exportTextarea = document.getElementById('export-textarea');
+            const downloadJsonBtn = document.getElementById('download-json-btn');
+            const importTextarea = document.getElementById('import-textarea');
+            const importJsonBtn = document.getElementById('import-json-btn');
+            const importFileInput = document.getElementById('import-file-input');
+            const loadFileBtn = document.getElementById('load-file-btn');
+            const copyPromptBtn = document.getElementById('copy-prompt-btn');
+
+            // --- State Management ---
+            let decks = [];
+            let editingDeckId = null;
+            let editingCardId = null;
+            let playSessionState = {
+                deck: null,
+                currentCardIndex: 0,
+                isFlipped: false,
+                timeout: 0,
+                timerId: null,
+                results: [] // true for correct, false for wrong
+            };
+
+            const resetPlaySessionState = () => {
+                clearInterval(playSessionState.timerId);
+                playSessionState = {
+                    deck: null,
+                    currentCardIndex: 0,
+                    isFlipped: false,
+                    timeout: 0,
+                    timerId: null,
+                    results: []
+                };
+            };
+
+            // --- Utility ---
+            const getContrastingTextColor = (hexColor) => {
+                if (!hexColor) return '#000000';
+                try {
+                    const r = parseInt(hexColor.substr(1, 2), 16);
+                    const g = parseInt(hexColor.substr(3, 2), 16);
+                    const b = parseInt(hexColor.substr(5, 2), 16);
+                    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                    return (yiq >= 128) ? '#000000' : '#ffffff';
+                } catch (e) {
+                    return '#000000';
+                }
+            };
+
+            // --- Data Persistence ---
+            const saveDecks = () => {
+                localStorage.setItem('jojo-flashcard-decks', JSON.stringify(decks));
+            };
+
+            const loadDecks = () => {
+                const savedDecks = localStorage.getItem('jojo-flashcard-decks');
+                if (savedDecks) {
+                    decks = JSON.parse(savedDecks);
+                }
+            };
+
+            // --- Render Functions ---
+            const renderAll = () => {
+                renderDecks();
+                saveDecks();
+                updateExportView();
+            };
+
+            const renderDecks = () => {
+                const openDeckId = document.querySelector('#deck-list .collapse.show')?.id.replace('cards-', '');
+
+                deckList.innerHTML = '';
+                if (decks.length === 0) {
+                    deckList.innerHTML = `<p class="text-muted">No decks yet. Add one to get started!</p>`;
+                    return;
+                }
+
+                decks.forEach(deck => {
+                    const isDeckOpen = deck.id === openDeckId;
+                    const deckEl = document.createElement('div');
+                    deckEl.className = 'deck-item card';
+                    deckEl.dataset.id = deck.id;
+                    deckEl.innerHTML = `
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            ${editingDeckId === deck.id ? `
+                                <input type="text" class="form-control form-control-lg" value="${deck.title}" onblur="handleSaveDeckTitle(event, '${deck.id}')" onkeydown="if(event.key === 'Enter') this.blur()" autofocus>
+                            ` : `
+                                <h4 class="mb-0">${deck.title}</h4>
+                            `}
+                            <div class="btn-group">
+                                <button class="btn btn-success play-deck-btn" title="Play Deck" ${deck.cards.length === 0 ? 'disabled' : ''}><i class="bi bi-play-fill"></i></button>
+                                <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#cards-${deck.id}" title="View ${deck.cards.length} Cards"><i class="bi bi-view-list"></i></button>
+                                <button class="btn btn-outline-info edit-deck-btn" title="Edit Title"><i class="bi bi-pencil-fill"></i></button>
+                                <button class="btn btn-outline-danger delete-deck-btn" title="Delete Deck"><i class="bi bi-trash-fill"></i></button>
+                            </div>
+                        </div>
+                        <div class="collapse ${isDeckOpen ? 'show' : ''}" id="cards-${deck.id}">
+                             <div class="card-body">
+                                <div class="card-list-container mb-3 border rounded p-2">
+                                    ${renderCardsForDeck(deck)}
+                                </div>
+                                <button class="btn btn-primary btn-sm add-card-btn"><i class="bi bi-plus"></i> Add Card</button>
+                            </div>
+                        </div>
+                    `;
+                    deckList.appendChild(deckEl);
+                });
+            };
+
+            const renderCardsForDeck = (deck) => {
+                if (deck.cards.length === 0) {
+                    return '<p class="text-muted text-center p-3">This deck is empty. Add a new card to start!</p>';
+                }
+
+                return deck.cards.map(card => `
+                    <div class="card mb-2" data-card-id="${card.id}">
+                        ${editingCardId === card.id ? `
+                            <div class="card-body">
+                                <div class="mb-2">
+                                    <label class="form-label small">Front</label>
+                                    <textarea class="form-control form-control-sm" id="edit-front-${card.id}">${card.front}</textarea>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small">Back</label>
+                                    <textarea class="form-control form-control-sm" id="edit-back-${card.id}">${card.back}</textarea>
+                                </div>
+                                <div class="row gx-2">
+                                    <div class="col">
+                                        <label class="form-label small">Front Color</label>
+                                        <input type="color" class="form-control form-control-color" id="edit-front-color-${card.id}" value="${card.frontColor}">
+                                    </div>
+                                    <div class="col">
+                                        <label class="form-label small">Back Color</label>
+                                        <input type="color" class="form-control form-control-color" id="edit-back-color-${card.id}" value="${card.backColor}">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-primary save-card-btn">Save</button>
+                                    <button class="btn btn-sm btn-secondary cancel-card-edit-btn">Cancel</button>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <p class="mb-1"><span class="color-swatch me-2" style="background-color:${card.frontColor};"></span><strong>Front:</strong> ${card.front}</p>
+                                    <p class="mb-0 text-muted"><span class="color-swatch me-2" style="background-color:${card.backColor};"></span><strong>Back:</strong> ${card.back}</p>
+                                </div>
+                                <div class="btn-group btn-group-sm ms-3">
+                                    <button class="btn btn-outline-secondary edit-card-btn" title="Edit Card"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger delete-card-btn" title="Delete Card"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                `).join('');
+            };
+
+
+            // --- Core Logic ---
+            const findDeck = (deckId) => decks.find(d => d.id === deckId);
+
+            window.handleSaveDeckTitle = (event, deckId) => {
+                const deck = findDeck(deckId);
+                if (deck) {
+                    deck.title = event.target.value.trim() || 'Untitled Deck';
+                    editingDeckId = null;
+                    renderAll();
+                }
+            };
+
+            const startPlaySession = () => {
+                const deck = playSessionState.deck;
+                if (!deck || deck.cards.length === 0) return;
+
+                playSessionState.currentCardIndex = 0;
+                playSessionState.isFlipped = false;
+                playSessionState.timeout = parseInt(timeoutSlider.value, 10);
+                playSessionState.results = [];
+
+                playSettings.classList.add('d-none');
+                sessionResults.classList.add('d-none');
+                playSession.classList.remove('d-none');
+
+                deckTotal.textContent = deck.cards.length;
+                renderCurrentCardInModal();
+            };
+
+            const showSessionResults = () => {
+                playSession.classList.add('d-none');
+                sessionResults.classList.remove('d-none');
+
+                const correctCount = playSessionState.results.filter(r => r).length;
+                const totalCount = playSessionState.results.length;
+                const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+
+                resultsSummary.innerHTML = `You scored <strong>${correctCount} / ${totalCount}</strong> (${percentage}%) correct.`;
+
+                clearInterval(playSessionState.timerId);
+                playSessionState.timerId = null;
+                playBottomControls.innerHTML = '';
+            };
+
+            const renderCurrentCardInModal = () => {
+                if (!playSessionState.deck) return;
+
+                const card = playSessionState.deck.cards[playSessionState.currentCardIndex];
+
+                flashcardFront.textContent = card.front;
+                flashcardFront.style.backgroundColor = card.frontColor;
+                flashcardFront.style.color = getContrastingTextColor(card.frontColor);
+
+                flashcardBack.textContent = card.back;
+                flashcardBack.style.backgroundColor = card.backColor;
+                flashcardBack.style.color = getContrastingTextColor(card.backColor);
+
+                cardCounter.textContent = playSessionState.currentCardIndex + 1;
+
+                const progress = ((playSessionState.currentCardIndex + 1) / playSessionState.deck.cards.length) * 100;
+                deckProgressBar.style.width = `${progress}%`;
+
+                playSessionState.isFlipped = false;
+                flashcard.classList.remove('is-flipped');
+                updatePlayControls();
+
+                resetAndStartCardTimer();
+            };
+
+            const updatePlayControls = () => {
+                playModalBody.classList.remove('show-controls');
+                let controlsHtml = '';
+                if (!playSessionState.isFlipped) {
+                    controlsHtml = `
+                        <div class="btn-group btn-group-lg" role="group">
+                           <button type="button" class="btn btn-primary" id="flip-card-btn"><i class="bi bi-arrow-repeat"></i> Flip</button>
+                        </div>
+                        <button class="btn btn-danger btn-lg ms-3" data-bs-dismiss="modal"><i class="bi bi-box-arrow-right me-1"></i> End</button>
+                    `;
+                } else {
+                    controlsHtml = `
+                        <div class="btn-group btn-group-lg" role="group">
+                           <button type="button" class="btn btn-danger" id="wrong-btn"><i class="bi bi-x-lg"></i> Wrong</button>
+                           <button type="button" class="btn btn-success" id="correct-btn"><i class="bi bi-check-lg"></i> Correct</button>
+                        </div>
+                        <button class="btn btn-secondary btn-lg ms-3" data-bs-dismiss="modal"><i class="bi bi-box-arrow-right me-1"></i> End</button>
+                    `;
+                    playModalBody.classList.add('show-controls');
+                }
+                playBottomControls.innerHTML = controlsHtml;
+            };
+
+            const resetAndStartCardTimer = () => {
+                clearInterval(playSessionState.timerId);
+                playSessionState.timerId = null;
+
+                if (playSessionState.timeout > 0 && !playSessionState.isFlipped) {
+                    cardTimerContainer.classList.remove('d-none');
+                    cardTimerBar.style.transition = 'none';
+                    cardTimerBar.style.width = '100%';
+
+                    void cardTimerBar.offsetWidth; // Force reflow
+
+                    cardTimerBar.style.transition = `width ${playSessionState.timeout}s linear`;
+                    cardTimerBar.style.width = '0%';
+
+                    playSessionState.timerId = setTimeout(() => {
+                        if (playModalEl.classList.contains('show') && !playSessionState.isFlipped) {
+                            flipCard();
+                        }
+                    }, playSessionState.timeout * 1000);
+                } else {
+                    cardTimerContainer.classList.add('d-none');
+                }
+            };
+
+            const flipCard = () => {
+                playSessionState.isFlipped = !playSessionState.isFlipped;
+                flashcard.classList.toggle('is-flipped');
+                clearInterval(playSessionState.timerId); // Stop timer on flip
+                updatePlayControls();
+            };
+
+            const nextCard = (wasCorrect) => {
+                if (!playSessionState.deck) return;
+
+                playSessionState.results.push(wasCorrect);
+
+                if (playSessionState.currentCardIndex < playSessionState.deck.cards.length - 1) {
+                    playSessionState.currentCardIndex++;
+                    renderCurrentCardInModal();
+                } else {
+                    showSessionResults();
+                }
+            };
+
+            // --- Event Listeners ---
+            themeSwitch.addEventListener('change', () => {
+                const theme = themeSwitch.checked ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                localStorage.setItem('jojo-flashcards-theme', theme);
+            });
+
+            addDeckBtn.addEventListener('click', () => {
+                const currentEditor = document.querySelector('.deck-item input[type="text"]');
+                if (currentEditor) {
+                    currentEditor.blur();
+                }
+
+                const newId = `deck_${Date.now()}`;
+                decks.unshift({
+                    id: newId,
+                    title: 'New Deck',
+                    cards: []
+                });
+                editingDeckId = newId;
+                renderAll();
+            });
+
+            deckList.addEventListener('click', e => {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                const deckEl = target.closest('.deck-item');
+                if (!deckEl) return;
+                const deckId = deckEl.dataset.id;
+                const deck = findDeck(deckId);
+                let needsFullRender = false;
+
+                const partialRenderCards = () => {
+                    const cardListContainer = deckEl.querySelector('.card-list-container');
+                    if (cardListContainer) {
+                        cardListContainer.innerHTML = renderCardsForDeck(deck);
+                    }
+                    saveDecks();
+                    updateExportView();
+                };
+
+                if (target.classList.contains('add-card-btn')) {
+                    editingCardId = `card_${Date.now()}`;
+                    deck.cards.push({ id: editingCardId, front: '', back: '', frontColor: '#FFFFFF', backColor: '#e9ecef' });
+                    partialRenderCards();
+                    const newCardInput = deckEl.querySelector(`#edit-front-${editingCardId}`);
+                    if (newCardInput) newCardInput.focus();
+                    return;
+                }
+
+                const cardEl = target.closest('.card[data-card-id]');
+                if (cardEl) {
+                    const cardId = cardEl.dataset.cardId;
+                    if (target.classList.contains('edit-card-btn')) {
+                        editingCardId = cardId;
+                    } else if (target.classList.contains('delete-card-btn')) {
+                        deck.cards = deck.cards.filter(c => c.id !== cardId);
+                    } else if (target.classList.contains('save-card-btn')) {
+                        const card = deck.cards.find(c => c.id === cardId);
+                        card.front = document.getElementById(`edit-front-${cardId}`).value;
+                        card.back = document.getElementById(`edit-back-${cardId}`).value;
+                        card.frontColor = document.getElementById(`edit-front-color-${cardId}`).value;
+                        card.backColor = document.getElementById(`edit-back-color-${cardId}`).value;
+                        editingCardId = null;
+                    } else if (target.classList.contains('cancel-card-edit-btn')) {
+                        const card = deck.cards.find(c => c.id === cardId);
+                        if (card && card.front === '' && card.back === '') {
+                            deck.cards = deck.cards.filter(c => c.id !== cardId);
+                        }
+                        editingCardId = null;
+                    }
+                    partialRenderCards();
+                    return;
+                }
+
+                if (target.classList.contains('edit-deck-btn')) {
+                    editingDeckId = deckId;
+                    needsFullRender = true;
+                } else if (target.classList.contains('delete-deck-btn')) {
+                    if (confirm(`Are you sure you want to delete the deck "${deck.title}"?`)) {
+                        decks = decks.filter(d => d.id !== deckId);
+                        needsFullRender = true;
+                    }
+                } else if (target.classList.contains('play-deck-btn')) {
+                    playSettingsTitle.textContent = `Ready to Play "${deck.title}"?`;
+                    playSessionState.deck = deck;
+                    playModal.show();
+                }
+
+                if (needsFullRender) {
+                    renderAll();
+                }
+            });
+
+            // Play Modal listeners
+            timeoutSlider.addEventListener('input', () => {
+                const value = parseInt(timeoutSlider.value, 10);
+                timeoutValue.textContent = (value === 0) ? 'Disabled' : `${value}s`;
+            });
+
+            startPlayBtn.addEventListener('click', startPlaySession);
+            playAgainBtn.addEventListener('click', startPlaySession);
+
+            playModalEl.addEventListener('hide.bs.modal', () => {
+                resetPlaySessionState();
+                playSession.classList.add('d-none');
+                sessionResults.classList.add('d-none');
+                playSettings.classList.remove('d-none');
+                timeoutSlider.value = 0;
+                timeoutValue.textContent = 'Disabled';
+            });
+
+            flashcard.addEventListener('click', flipCard);
+            playBottomControls.addEventListener('click', e => {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                if (target.id === 'flip-card-btn') flipCard();
+                if (target.id === 'correct-btn') nextCard(true);
+                if (target.id === 'wrong-btn') nextCard(false);
+            });
+
+            document.addEventListener('keydown', e => {
+                if (playModalEl.classList.contains('show') && !playSession.classList.contains('d-none')) {
+                    if (e.key === ' ') {
+                        e.preventDefault();
+                        if (!playSessionState.isFlipped) flipCard();
+                    }
+                    if (playSessionState.isFlipped) {
+                        if (e.key === 'ArrowRight') nextCard(true);
+                        if (e.key === 'ArrowLeft') nextCard(false);
+                    }
+                }
+            });
+
+
+            // --- Import/Export Logic ---
+            const updateExportView = () => {
+                const exportableDecks = decks.map(d => ({
+                    title: d.title,
+                    cards: d.cards.map(c => ({
+                        front: c.front,
+                        back: c.back,
+                        frontColor: c.frontColor,
+                        backColor: c.backColor,
+                    }))
+                }));
+                exportTextarea.value = JSON.stringify(exportableDecks, null, 2);
+            };
+
+            const importDecks = (jsonString) => {
+                try {
+                    const importedData = JSON.parse(jsonString);
+                    if (!Array.isArray(importedData)) throw new Error("JSON must be an array of decks.");
+
+                    const newDecks = importedData.map(deckData => {
+                        if (!deckData.title || !Array.isArray(deckData.cards)) {
+                            throw new Error("Invalid deck format. 'title' and 'cards' array are required.");
+                        }
+                        return {
+                            id: `deck_${Date.now()}_${Math.random()}`,
+                            title: deckData.title,
+                            cards: deckData.cards.map(cardData => ({
+                                id: `card_${Date.now()}_${Math.random()}`,
+                                front: cardData.front || '',
+                                back: cardData.back || '',
+                                frontColor: cardData.frontColor || '#FFFFFF',
+                                backColor: cardData.backColor || '#E9ECEF',
+                            }))
+                        };
+                    });
+
+                    decks.push(...newDecks);
+                    renderAll();
+                    alert(`${newDecks.length} deck(s) imported successfully!`);
+                } catch (error) {
+                    alert(`Import failed: ${error.message}`);
+                }
+            };
+
+            downloadJsonBtn.addEventListener('click', () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(exportTextarea.value);
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "flashcard-decks.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            });
+
+            importJsonBtn.addEventListener('click', () => {
+                const jsonString = importTextarea.value;
+                if (!jsonString.trim()) {
+                    alert("Import field is empty.");
+                    return;
+                }
+                importDecks(jsonString);
+            });
+
+            loadFileBtn.addEventListener('click', () => importFileInput.click());
+            importFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    importDecks(e.target.result);
+                };
+                reader.readAsText(file);
+                importFileInput.value = '';
+            });
+
+            copyPromptBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(copyPromptBtn.previousElementSibling.textContent.trim()).then(() => {
+                    const originalText = copyPromptBtn.innerHTML;
+                    copyPromptBtn.innerHTML = `<i class="bi bi-check-lg me-1"></i> Copied!`;
+                    setTimeout(() => { copyPromptBtn.innerHTML = originalText; }, 2000);
+                });
+            });
+
+            // --- Initialization ---
+            const savedTheme = localStorage.getItem('jojo-flashcards-theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-bs-theme', savedTheme);
+                themeSwitch.checked = savedTheme === 'dark';
+            }
+
+            loadDecks();
+            renderAll();
+        });
+    </script>
+</body>
+
+</html>

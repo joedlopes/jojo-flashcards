@@ -1,0 +1,61 @@
+{
+  "name": "jojo-flashcards",
+  "version": "0.0.1",
+  "description": "JoJo-Flashcards! is a fast, offline-first flashcard app to help you master any subject using interactive flashcards. Built with JavaScript, Bootstrap, and LocalStorage.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Joed Lopes da Silva",
+    "email": "joed@jojo-flashcards.com"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.jojo.flashcards",
+    "productName": "JoJo Flashcards",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.js",
+      "assets/**/*",
+      "index.html"
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage",
+        "dir"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
